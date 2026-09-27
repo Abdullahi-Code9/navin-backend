@@ -64,7 +64,10 @@ const EnvShape = z.object({
   CLOUDINARY_API_KEY: z.string().min(1).optional(),
   CLOUDINARY_API_SECRET: z.string().min(1).optional(),
 
-  // Stellar Soroban / Escrow
+  // Stellar Horizon / Soroban / Escrow
+  // Both are optional overrides — when unset, the URL is derived from STELLAR_NETWORK
+  // (see src/config/stellarNetwork.ts).
+  HORIZON_URL: z.string().url('HORIZON_URL must be a valid URL').optional(),
   // SOROBAN_ADAPTER selects the chain adapter used for escrow/hash-emit operations.
   //   simulated (default) — in-memory stub; no RPC credentials required.
   //   soroban             — live Soroban RPC; requires SOROBAN_RPC_URL + ESCROW_CONTRACT_ID.
