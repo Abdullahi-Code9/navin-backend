@@ -32,6 +32,7 @@ import {
   ALLOWED_TRANSITIONS,
 } from '../../shared/constants/shipmentStateMachine.js';
 import { createLedgerBlockService } from '../ledger/ledger.service.js';
+import { generateDataHash, buildCanonicalShipmentPayload } from '../../shared/utils/crypto.js';
 import type { BulkStatusUpdateInput } from './shipments.validation.js';
 
 import { offsetSkip } from '../../shared/utils/pagination.js';
@@ -606,12 +607,20 @@ export const updateShipmentStatusService = async (
 
   // Write ledger block for every status change
   try {
+    const canonical = buildCanonicalShipmentPayload({
+      shipmentId: id,
+      event: status,
+      actor: actor?.userId,
+      timestamp: new Date(),
+      metadata: { previousStatus },
+    });
     await createLedgerBlockService({
       shipmentId: id,
-      eventType: status as unknown as MilestoneEvent,
+      milestoneEvent: status as unknown as MilestoneEvent,
       transactionHash: shipment.stellarTxHash ?? undefined,
+      dataHash: generateDataHash(canonical),
       actor: actor?.userId,
-      metadata: { previousStatus },
+      metadata: { previousStatus, canonical },
     });
   } catch (ledgerErr) {
     logger.warn(
@@ -639,12 +648,20 @@ export const updateShipmentStatusService = async (
 
           // Write ledger block for settlement initiation
           try {
+            const canonical = buildCanonicalShipmentPayload({
+              shipmentId: id,
+              event: MilestoneEvent.SETTLEMENT_INITIATED,
+              actor: actor?.userId,
+              timestamp: new Date(),
+              metadata: { paymentId: payment._id.toString() },
+            });
             await createLedgerBlockService({
               shipmentId: id,
-              eventType: MilestoneEvent.SETTLEMENT_INITIATED,
+              milestoneEvent: MilestoneEvent.SETTLEMENT_INITIATED,
               transactionHash: releaseResult.transactionHash,
+              dataHash: generateDataHash(canonical),
               actor: actor?.userId,
-              metadata: { paymentId: payment._id.toString() },
+              metadata: { paymentId: payment._id.toString(), canonical },
             });
           } catch (settlementLedgerErr) {
             logger.warn(
@@ -907,14 +924,26 @@ export const uploadShipmentProofService = async (
 
   // Write PROOF_SUBMITTED ledger block
   try {
+    const canonical = buildCanonicalShipmentPayload({
+      shipmentId: id,
+      event: MilestoneEvent.PROOF_SUBMITTED,
+      actor: proof.actorUserId,
+      timestamp: new Date(),
+      metadata: {
+        proofUrl,
+        recipientSignatureName: proof.recipientSignatureName,
+      },
+    });
     await createLedgerBlockService({
       shipmentId: id,
       milestoneEvent: MilestoneEvent.PROOF_SUBMITTED,
       shipmentReference: shipment?.trackingNumber,
       transactionHash: shipment?.stellarTxHash ?? undefined,
+      dataHash: generateDataHash(canonical),
       metadata: {
         proofUrl,
         recipientSignatureName: proof.recipientSignatureName,
+        canonical,
       },
     });
   } catch (ledgerErr) {
