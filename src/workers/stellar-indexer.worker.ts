@@ -123,7 +123,7 @@ export async function indexStellarTransactions(
       {
         $setOnInsert: {
           shipmentId: String((payment as { shipmentId: unknown }).shipmentId),
-          eventType: toMilestoneEvent(tx.memo),
+          milestoneEvent: toMilestoneEvent(tx.memo),
           transactionHash: tx.hash,
           actor: 'stellar-indexer',
         },
@@ -190,7 +190,7 @@ export async function indexStellarTransactions(
       {
         $setOnInsert: {
           shipmentId: String((record as { shipmentId: unknown }).shipmentId),
-          eventType,
+          milestoneEvent: eventType,
           transactionHash: tx.hash,
           actor: 'stellar-indexer',
         },

@@ -17,7 +17,11 @@ export interface IDeliveryProof {
 }
 
 export type DisputeType =
-  'WRONG_GOODS' | 'DAMAGED' | 'NOT_DELIVERED' | 'PAYMENT_DISAGREEMENT' | 'OTHER';
+  | 'WRONG_GOODS'
+  | 'DAMAGED'
+  | 'NOT_DELIVERED'
+  | 'PAYMENT_DISAGREEMENT'
+  | 'OTHER';
 export type DisputeStatus = 'PENDING' | 'ESCROWED' | 'RELEASED' | 'DISPUTED' | 'FAILED';
 
 export type ShipmentDocumentType =

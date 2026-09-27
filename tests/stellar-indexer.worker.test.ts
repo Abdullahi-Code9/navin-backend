@@ -181,7 +181,7 @@ describe('stellar indexer worker', () => {
       expect.objectContaining({
         $setOnInsert: {
           shipmentId: '507f1f77bcf86cd799439011',
-          eventType: 'IN_TRANSIT',
+          milestoneEvent: 'IN_TRANSIT',
           transactionHash: 'tx-telemetry-1',
           actor: 'stellar-indexer',
         },
