@@ -1,4 +1,5 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import { createChainAdapterMock, createChainFactoryMock } from './helpers/mocks.js';
 
 const createLedgerBlockMock = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
@@ -53,9 +54,7 @@ jest.unstable_mockModule('../src/shared/utils/auditLog.js', () => ({
 }));
 
 jest.unstable_mockModule('../src/modules/analytics/analytics.cache.js', () => ({
-  invalidateAnalyticsPerformanceCache: jest
-    .fn<() => Promise<void>>()
-    .mockResolvedValue(undefined),
+  invalidateAnalyticsPerformanceCache: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
 }));
 
 jest.unstable_mockModule('../src/modules/shipments/shipmentsEta.cache.js', () => ({
@@ -73,14 +72,18 @@ jest.unstable_mockModule('../src/services/stellar.service.js', () => ({
   getStellarExplorerUrl: jest.fn(),
 }));
 
+const chainAdapter = createChainAdapterMock();
+jest.unstable_mockModule('../src/services/chain/factory.js', () =>
+  createChainFactoryMock(chainAdapter)
+);
+
 jest.unstable_mockModule('../src/modules/payments/payments.repo.js', () => ({
   getPaymentByShipmentId: jest.fn<() => Promise<null>>().mockResolvedValue(null),
   updatePaymentStatus: jest.fn(),
 }));
 
-const { updateShipmentStatusService, uploadShipmentProofService } = await import(
-  '../src/modules/shipments/shipments.service.js'
-);
+const { updateShipmentStatusService, uploadShipmentProofService } =
+  await import('../src/modules/shipments/shipments.service.js');
 
 const { multerFile } = await import('./fixtures/factories.js');
 
@@ -157,14 +160,17 @@ describe('Ledger block creation on lifecycle events', () => {
   });
 
   it('settlement initiation creates a SETTLEMENT_INITIATED ledger block', async () => {
-    const { releaseEscrow } = await import('../src/services/stellar.service.js');
     const paymentsRepo = await import('../src/modules/payments/payments.repo.js');
 
-    (releaseEscrow as jest.MockedFunction<typeof releaseEscrow>).mockResolvedValue({
-      success: true,
-      transactionHash: 'stellar-tx-hash-abc',
+    chainAdapter.releaseEscrow.mockResolvedValueOnce({
+      txHash: 'stellar-tx-hash-abc',
+      ledger: 1,
+      simulated: true,
+      paymentId: 'pay-1',
     });
-    (paymentsRepo.getPaymentByShipmentId as jest.Mock<(...args: unknown[]) => Promise<unknown>>).mockResolvedValue({
+    (
+      paymentsRepo.getPaymentByShipmentId as jest.Mock<(...args: unknown[]) => Promise<unknown>>
+    ).mockResolvedValue({
       _id: 'pay-1',
       shipmentId: 'ship-1',
       organizationId: 'org-1',
@@ -175,7 +181,9 @@ describe('Ledger block creation on lifecycle events', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    (paymentsRepo.updatePaymentStatus as jest.Mock<(...args: unknown[]) => Promise<unknown>>).mockResolvedValue({
+    (
+      paymentsRepo.updatePaymentStatus as jest.Mock<(...args: unknown[]) => Promise<unknown>>
+    ).mockResolvedValue({
       _id: 'pay-1',
       shipmentId: 'ship-1',
       organizationId: 'org-1',
@@ -217,7 +225,12 @@ describe('Ledger block creation on lifecycle events', () => {
         shipmentId: 'ship-1',
         eventType: 'SETTLEMENT_INITIATED',
         transactionHash: 'stellar-tx-hash-abc',
+        metadata: { paymentId: 'pay-1', simulated: true },
       })
     );
+    expect(chainAdapter.releaseEscrow).toHaveBeenCalledWith({
+      payment_id: 'pay-1',
+      proof_hash: expect.stringMatching(/^[0-9a-f]{64}$/),
+    });
   });
 });
