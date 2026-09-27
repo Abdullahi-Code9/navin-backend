@@ -318,7 +318,10 @@ export const getShipmentByIdService = async (
 };
 
 export type ShipmentTimelineEventType =
-  'STATUS_CHANGE' | 'TELEMETRY_ANCHORED' | 'ANOMALY_DETECTED' | 'PROOF_UPLOADED';
+  | 'STATUS_CHANGE'
+  | 'TELEMETRY_ANCHORED'
+  | 'ANOMALY_DETECTED'
+  | 'PROOF_UPLOADED';
 
 export interface ShipmentTimelineEvent {
   type: ShipmentTimelineEventType;
