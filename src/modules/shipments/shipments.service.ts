@@ -318,7 +318,10 @@ export const getShipmentByIdService = async (
 };
 
 export type ShipmentTimelineEventType =
-  'STATUS_CHANGE' | 'TELEMETRY_ANCHORED' | 'ANOMALY_DETECTED' | 'PROOF_UPLOADED';
+  | 'STATUS_CHANGE'
+  | 'TELEMETRY_ANCHORED'
+  | 'ANOMALY_DETECTED'
+  | 'PROOF_UPLOADED';
 
 export interface ShipmentTimelineEvent {
   type: ShipmentTimelineEventType;
@@ -604,14 +607,18 @@ export const updateShipmentStatusService = async (
   await invalidateAnalyticsPerformanceCache();
   await invalidateShipmentEtaCache(id);
 
-  // Write ledger block for every status change
+  // Write ledger block for every status change.
+  // transactionHash is intentionally omitted here: the only on-chain tx we have
+  // at this point is the tokenization tx recorded at creation time (stellarTxHash),
+  // which is completely unrelated to a status update.  Citing it would create a
+  // false chain-of-custody link.  Per-event anchoring will populate this field
+  // once real Soroban integration lands (see TODO Part 3 / #358).
   try {
     await createLedgerBlockService({
       shipmentId: id,
       eventType: status as unknown as MilestoneEvent,
-      transactionHash: shipment.stellarTxHash ?? undefined,
       actor: actor?.userId,
-      metadata: { previousStatus },
+      metadata: { previousStatus, simulated: true },
     });
   } catch (ledgerErr) {
     logger.warn(
