@@ -1,6 +1,6 @@
 import { describe, expect, beforeEach, it, jest } from '@jest/globals';
 import request from 'supertest';
-import jwt from 'jsonwebtoken';
+import { signToken } from './fixtures/factories.js';
 import type { Application } from 'express';
 
 describe('DELETE /api/users/:id', () => {
@@ -32,6 +32,7 @@ describe('DELETE /api/users/:id', () => {
     await jest.unstable_mockModule('../src/modules/users/users.repo.js', () => ({
       createUser: jest.fn(),
       findUserByEmail: jest.fn(),
+      findUserById: jest.fn(),
       findUsersByOrganizationId: jest.fn(),
     }));
 
@@ -40,10 +41,7 @@ describe('DELETE /api/users/:id', () => {
   });
 
   it('returns standard envelope on successful deletion (ADMIN)', async () => {
-    const token = jwt.sign(
-      { userId: 'admin-1', role: 'ADMIN', organizationId: 'org-a' },
-      process.env.JWT_SECRET!,
-    );
+    const token = signToken({ userId: 'admin-1', role: 'ADMIN', organizationId: 'org-a' });
 
     const res = await request(app)
       .delete('/api/users/user-to-delete')
@@ -64,10 +62,7 @@ describe('DELETE /api/users/:id', () => {
   });
 
   it('returns 403 when caller has insufficient role (VIEWER)', async () => {
-    const token = jwt.sign(
-      { userId: 'viewer-1', role: 'VIEWER', organizationId: 'org-a' },
-      process.env.JWT_SECRET!,
-    );
+    const token = signToken({ userId: 'viewer-1', role: 'VIEWER', organizationId: 'org-a' });
 
     const res = await request(app)
       .delete('/api/users/user-to-delete')
@@ -78,10 +73,7 @@ describe('DELETE /api/users/:id', () => {
   });
 
   it('returns 400 when id param is empty string', async () => {
-    const token = jwt.sign(
-      { userId: 'admin-1', role: 'ADMIN', organizationId: 'org-a' },
-      process.env.JWT_SECRET!,
-    );
+    const token = signToken({ userId: 'admin-1', role: 'ADMIN', organizationId: 'org-a' });
 
     // Route requires a non-empty :id; an explicit empty segment won't match the route,
     // so we test a whitespace-only id via the param validator.
@@ -95,10 +87,7 @@ describe('DELETE /api/users/:id', () => {
   it('returns 404 when the target user does not exist', async () => {
     findByIdAndUpdate.mockResolvedValue(null);
 
-    const token = jwt.sign(
-      { userId: 'admin-1', role: 'ADMIN', organizationId: 'org-a' },
-      process.env.JWT_SECRET!,
-    );
+    const token = signToken({ userId: 'admin-1', role: 'ADMIN', organizationId: 'org-a' });
 
     const res = await request(app)
       .delete('/api/users/nonexistent-id')
@@ -109,10 +98,7 @@ describe('DELETE /api/users/:id', () => {
   });
 
   it('SUPER_ADMIN can also delete users', async () => {
-    const token = jwt.sign(
-      { userId: 'super-1', role: 'SUPER_ADMIN', organizationId: 'org-a' },
-      process.env.JWT_SECRET!,
-    );
+    const token = signToken({ userId: 'super-1', role: 'SUPER_ADMIN', organizationId: 'org-a' });
 
     const res = await request(app)
       .delete('/api/users/user-to-delete')

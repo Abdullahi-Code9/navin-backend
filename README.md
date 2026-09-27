@@ -13,50 +13,132 @@ The backend service powers the off-chain layer of the platform, handling API log
 
 ## Table of Contents
 
-- [Quick Start](#quick-start)
+- [Docker Quickstart](#docker-quickstart)
 - [Authentication](#authentication)
 - [API Response Envelope](#api-response-envelope)
 - [Pagination](#pagination)
-- [Error Handling](#error-handling)
-- [Real-time Features](#real-time-features)
-- [Available Endpoints](#available-endpoints)
-- [Environment Variables](#environment-variables)
 - [Scripts](#scripts)
-- [Contributing](#contributing)
 
 ---
 
-## Quick Start
+## Docker Quickstart
 
-Get the Navin Backend running in **less than 5 minutes**:
+This is the shortest path to a complete local stack. It runs the API, MongoDB,
+Redis, and both Stellar workers on the Compose network.
+
+**1. Clone the repository**
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/Navin-xmr/navin-backend.git
 cd navin-backend
-
-# 2. Install dependencies (reproducible clean install)
-npm ci
-
-# 3. Create environment file
-cp .env.example .env
-# A development JWT_SECRET is pre-filled in .env.example.
-# Edit MONGO_URI if your MongoDB is not on the default localhost:27017.
-
-# 4. Start MongoDB and Redis (required — Redis powers queues, SSE and caches)
-docker run -d -p 27017:27017 --name navin_mongo mongo:6.0
-docker run -d -p 6379:6379 --name navin_redis redis:7-alpine
-
-# 5. Start the development server (with hot reload)
-npm run dev
-
-# Expected output:
-# info: HTTP server listening port=3000
 ```
 
-The API is now available at `http://localhost:3000/api`.
+**2. Create the Compose environment file**
 
-> Prefer containers? See `docker-compose.yml` (mongo + redis + app). Note the compose stack is under repair — track progress in `TODO.md` Part 2 before relying on it.
+```bash
+cp .env.example .env
+# Replace development secrets before using this stack outside a local machine.
+```
+
+On Windows PowerShell: `Copy-Item .env.example .env`
+
+**3. Build and start the production image and dependencies**
+
+```bash
+docker compose -f docker-compose.yml up -d --build
+```
+
+This uses only `docker-compose.yml` (no override) so the stack runs the
+production image. The `-f docker-compose.yml` flag prevents Docker Compose
+from auto-merging `docker-compose.override.yml`.
+
+**4. Verify the services and API**
+
+```bash
+docker compose -f docker-compose.yml ps
+curl http://localhost:3000/api/health
+```
+
+On Windows PowerShell: `curl.exe http://localhost:3000/api/health`
+
+The health request should return `success: true` and `data.status: "active"`.
+
+The Compose file reads `.env` when it exists. It supplies the internal
+container addresses for MongoDB and Redis, so `MONGO_URI` and `REDIS_URL` in
+`.env` do not need to be changed for this workflow. The API is available at
+`http://localhost:3000/api`.
+
+### Service topology
+
+```mermaid
+flowchart LR
+  client[Client] -->|HTTP :3000| app[app<br/>Express API]
+  app --> mongo[(mongo<br/>MongoDB :27017)]
+  app --> redis[(redis<br/>Redis :6379)]
+  worker[stellar-worker<br/>Stellar anchor worker] --> mongo
+    worker --> redis
+  indexer[stellar-indexer<br/>Confirmation indexer] --> mongo
+    indexer --> redis
+```
+
+`mongo` and `redis` are published on loopback (`127.0.0.1`) for local inspection only. The
+workers publish no ports; they consume the same MongoDB and Redis services as
+the API. The API and workers wait for healthy MongoDB and Redis containers
+before starting.
+
+### Docker development mode
+
+The default Compose discovery rules automatically merge
+`docker-compose.override.yml`, which mounts `src/` and runs `tsx watch`.
+Use this mode when you want hot reload:
+
+```bash
+docker compose up -d --build
+docker compose logs -f app
+```
+
+Use `docker compose -f docker-compose.yml ...` when you need the production
+runner without the development override, as in the quickstart above.
+
+### Environment variables
+
+See [docs/environment-variables.md](docs/environment-variables.md) for the
+complete environment matrix, validation rules, defaults, and optional
+integration settings. `JWT_SECRET` must be at least 32 characters; the example
+file contains a development placeholder that should be replaced locally.
+
+### Docker troubleshooting
+
+- **`app` is unhealthy:** inspect `docker compose -f docker-compose.yml logs app`.
+  The healthcheck calls `/api/health` after a 15-second startup grace period;
+  `docker compose ... ps` shows whether MongoDB and Redis became healthy first.
+- **The API exits immediately:** check `JWT_SECRET` length and the application
+  logs. A missing or invalid required environment value makes the process fail
+  fast during startup.
+- **MongoDB or Redis is stuck in `starting`:** inspect the service logs with
+  `docker compose -f docker-compose.yml logs mongo redis`, then retry after the
+  healthchecks pass. On a clean machine, the first image pulls can take a few
+  minutes.
+- **Port 3000, 27017, or 6379 is already in use:** stop the conflicting
+  process/container or change the published ports in a local Compose override.
+- **Workers restart or show no HTTP healthcheck:** this is expected for the
+  worker services. They do not listen on port 3000 and intentionally disable
+  the inherited app healthcheck; inspect their logs instead.
+- **Reset local state:** `docker compose -f docker-compose.yml down -v` removes
+  the MongoDB volume. Start again with the quickstart command to rebuild the
+  stack from an empty database.
+
+### Local development without Docker
+
+If MongoDB and Redis are already installed locally, run the API directly:
+
+```bash
+# Create .env first, then install dependencies
+npm ci
+
+# Start the development server with hot reload
+npm run dev
+```
 
 ### Verify Installation
 
@@ -484,7 +566,8 @@ Configuration is validated at boot with Zod (`src/env.ts`) — the process **exi
 | `PORT` | No | `3000` | HTTP listen port |
 | `NODE_ENV` | No | `development` | `development` \| `test` \| `production` |
 | `REDIS_URL` | No | `redis://127.0.0.1:6379` | Redis (BullMQ queues, SSE, caches) |
-| `STELLAR_NETWORK` | No | `testnet` | `testnet` \| `public` |
+| `STELLAR_NETWORK` | No | `testnet` | `testnet` \| `public`; selects the default Horizon/Soroban URLs |
+| `HORIZON_URL` | Optional | *(derived from `STELLAR_NETWORK`)* | Overrides the Horizon URL |
 | `STELLAR_SECRET_KEY` | Optional | — | Horizon signing key (required for anchoring jobs) |
 | `STELLAR_WEBHOOK_SECRET` | Optional | — | HMAC secret for `/api/webhooks/stellar` (min 16 chars) |
 | `FRONTEND_URL` | No | `http://localhost:3000` | Invite / password-reset link base |
@@ -492,7 +575,7 @@ Configuration is validated at boot with Zod (`src/env.ts`) — the process **exi
 | `TOTP_ENCRYPTION_KEY` | Optional* | — | 64-hex AES-256 key for 2FA secrets (*required in production*) |
 | `STORAGE_PROVIDER` | No | `mock` | `mock` \| `s3` \| `r2` \| `cloudinary` |
 
-The full matrix — SMTP, SendGrid, Twilio, S3/Cloudinary keys, Soroban placeholders, Sentry — lives in [`docs/environment-variables.md`](docs/environment-variables.md) and [`.env.example`](.env.example). There are **no** `JWT_EXPIRY`, `STELLAR_HORIZON_URL`, `STELLAR_NETWORK_PASSPHRASE`, or `API_KEY_PREFIX` variables; token TTL is fixed in code and the Horizon URL/network passphrase derive from `STELLAR_NETWORK`.
+The full matrix — SMTP, SendGrid, Twilio, S3/Cloudinary keys, Soroban placeholders, Sentry — lives in [`docs/environment-variables.md`](docs/environment-variables.md) and [`.env.example`](.env.example). There are **no** `JWT_EXPIRY`, `STELLAR_NETWORK_PASSPHRASE`, or `API_KEY_PREFIX` variables; token TTL is fixed in code and the network passphrase derives from `STELLAR_NETWORK`. The Horizon URL also derives from `STELLAR_NETWORK` by default, but can be overridden with `HORIZON_URL` (see `src/config/stellarNetwork.ts`); an unrecognized `STELLAR_NETWORK` value fails fast at startup.
 
 ---
 

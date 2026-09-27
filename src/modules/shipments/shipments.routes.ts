@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { asyncHandler } from '../../shared/http/asyncHandler.js';
+import { AppError, ErrorCodes } from '../../shared/http/errors.js';
 import { validateRequest } from '../../shared/validation/validate.js';
 import {
   getShipments,
@@ -8,6 +9,7 @@ import {
   createShipment,
   patchShipment,
   patchShipmentStatus,
+  bulkUpdateShipmentStatus,
   uploadShipmentProof,
   createDispute,
   deleteShipment,
@@ -27,6 +29,7 @@ import {
   ShipmentPatchBodySchema,
   ShipmentProofBodySchema,
   ShipmentStatusBodySchema,
+  BulkStatusUpdateBodySchema,
   ShipmentTimelineQuerySchema,
   CreateDisputeBodySchema,
   UploadDocumentBodySchema,
@@ -46,7 +49,7 @@ const documentUpload = multer({
     if (DOCUMENT_MIME_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid MIME type'));
+      cb(new AppError(400, 'Invalid MIME type', ErrorCodes.INVALID_MIME_TYPE));
     }
   },
 });
@@ -59,7 +62,7 @@ const photoUpload = multer({
     if (PHOTO_MIME_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid MIME type'));
+      cb(new AppError(400, 'Invalid MIME type', ErrorCodes.INVALID_MIME_TYPE));
     }
   },
 });
@@ -78,6 +81,16 @@ shipmentsRouter.get(
   requireRole(UserRole.ADMIN, UserRole.MANAGER, UserRole.VIEWER),
   validateRequest({ query: getShipmentsQuerySchema }),
   asyncHandler(getShipments)
+);
+
+// Registered before the `/:id` routes below so the literal `/bulk/status` segment
+// isn't swallowed by the `/:id/status` param route (Express matches in registration order).
+shipmentsRouter.patch(
+  '/bulk/status',
+  requireAuth,
+  requireRole(UserRole.ADMIN, UserRole.MANAGER),
+  validateRequest({ body: BulkStatusUpdateBodySchema }),
+  asyncHandler(bulkUpdateShipmentStatus)
 );
 
 shipmentsRouter.get(

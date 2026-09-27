@@ -13,9 +13,12 @@ let mockShipmentDoc: Record<string, unknown> = {};
 
 const findByIdMock = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
+const findByIdAndUpdateMock = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+
 jest.unstable_mockModule('../src/modules/shipments/shipments.model.js', () => ({
   Shipment: {
     findById: findByIdMock,
+    findByIdAndUpdate: findByIdAndUpdateMock,
   },
   ShipmentStatus: {
     CREATED: 'CREATED',
@@ -70,12 +73,6 @@ jest.unstable_mockModule('../src/services/stellar.service.js', () => ({
   getStellarExplorerUrl: jest.fn(),
 }));
 
-jest.unstable_mockModule('../src/services/mockStorageService.js', () => ({
-  mockUploadToStorage: jest
-    .fn<() => Promise<string>>()
-    .mockResolvedValue('https://mock-storage.com/proof.jpg'),
-}));
-
 jest.unstable_mockModule('../src/modules/payments/payments.repo.js', () => ({
   getPaymentByShipmentId: jest.fn<() => Promise<null>>().mockResolvedValue(null),
   updatePaymentStatus: jest.fn(),
@@ -85,6 +82,8 @@ const { updateShipmentStatusService, uploadShipmentProofService } = await import
   '../src/modules/shipments/shipments.service.js'
 );
 
+const { multerFile } = await import('./fixtures/factories.js');
+
 describe('Ledger block creation on lifecycle events', () => {
   beforeEach(() => {
     createLedgerBlockMock.mockReset();
@@ -93,6 +92,12 @@ describe('Ledger block creation on lifecycle events', () => {
       shipmentId: 'ship-1',
       eventType: 'CREATED',
       createdAt: new Date(),
+    });
+    findByIdAndUpdateMock.mockReset();
+    findByIdAndUpdateMock.mockResolvedValue({
+      _id: 'ship-1',
+      trackingNumber: 'TRK-1',
+      stellarTxHash: 'tx123',
     });
   });
 
@@ -131,17 +136,7 @@ describe('Ledger block creation on lifecycle events', () => {
   });
 
   it('proof upload creates a PROOF_SUBMITTED ledger block', async () => {
-    const mockFile = {
-      originalname: 'proof.jpg',
-      buffer: Buffer.from('fake'),
-      mimetype: 'image/jpeg',
-      size: 123,
-      fieldname: 'file',
-      destination: '',
-      filename: 'proof.jpg',
-      path: '',
-      stream: null as unknown as NodeJS.ReadableStream,
-    } as Express.Multer.File;
+    const mockFile = multerFile();
 
     findByIdMock.mockResolvedValue({
       _id: 'ship-1',
@@ -156,7 +151,7 @@ describe('Ledger block creation on lifecycle events', () => {
     expect(createLedgerBlockMock).toHaveBeenCalledWith(
       expect.objectContaining({
         shipmentId: 'ship-1',
-        eventType: 'PROOF_SUBMITTED',
+        milestoneEvent: 'PROOF_SUBMITTED',
       })
     );
   });
@@ -196,12 +191,17 @@ describe('Ledger block creation on lifecycle events', () => {
     const now = new Date();
     mockShipmentDoc = {
       _id: 'ship-1',
-      status: 'DELIVERED',
+      status: 'OUT_FOR_DELIVERY',
       milestones: [],
       stellarTxHash: undefined,
       updatedAt: now,
       save: mockSave.mockImplementation(async function (this: Record<string, unknown>) {
         this.status = 'DELIVERED';
+        (this.milestones as unknown[]).push({
+          name: 'DELIVERED',
+          timestamp: now,
+          description: 'Status changed to DELIVERED',
+        });
         return this;
       }),
     };

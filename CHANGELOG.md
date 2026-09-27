@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added Docker Compose quickstart, service topology, environment-matrix pointer, and troubleshooting guidance to the README
 - Added integration contract tests for implemented routes, authentication, role guards, and response envelopes (#385)
 - Added test-runner documentation for the backend integration contract suite (#385)
 - Renamed Socket.IO event `telemetry_update` → `location:update` to match frontend contract
@@ -18,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `emitNotificationNew()` emitter in `src/infra/socket/io.ts` for the new `notification:new` event targeted at user/organisation-scoped rooms
 - Added `SettlementStatusPayload` and `NotificationPayload` interfaces to `src/shared/types/socketEvents.ts`; deprecated `PaymentStatusPayload` alias kept for backward compatibility
 - Updated `docs/websockets.md` to document all renamed and new events with full payload schemas
+
+### Changed
+
+- Corrected `docs/PAGINATION.md` pagination strategy table: users dual-mode is live, documented the payments `total` meta variance, added shipment timeline to the cursor list (#576)
 
 ### Changed
 
@@ -37,9 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ANOMALY_DETECTED` audit log written from `detectAnomaly` per detected anomaly
 - `ActivityEvent` OpenAPI schema added to `docs/swagger.yaml` with full action/resource enums
 - Integration tests for `/api/activity` covering auth, role guards, mixed event types, `before` pagination, two-page cursor walk, and validation errors
-
-### Changed
-
 - `/api/audit-logs` role guard retained as SUPER_ADMIN + ADMIN only (backward compat); new `/api/activity` opens VIEWER and MANAGER access
 - `createShipmentService` now accepts optional `actorUserId` and strips it before Mongoose insert
 - `uploadShipmentProofService` and `createDisputeService` accept optional `actorUserId` for audit attribution
@@ -54,9 +56,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Created `src/shared/plugins/softDeletePlugin.ts` as a reusable Mongoose plugin for soft deletion (#309)
 - Added regression test for resolving a non-existent anomaly (#299).
 - `GET /api/events/poll` — polling fallback endpoint returning `RealtimeEvent[]` from a Redis-backed recent-events list (last 60 s window, capped at 500 entries); supports optional `since` ISO 8601 query param (#48)
-
-### Changed
-
 - Standardized password `minLength` to 8 across auth and users validation schemas and Swagger
 - Captured `req.rawBody` in the global JSON parser so Stellar webhook HMAC verification can sign the exact bytes received
 - Telemetry rejects simultaneous `cursor` + `page`; cursor takes precedence; pagination meta stays in `meta`

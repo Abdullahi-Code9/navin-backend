@@ -1,6 +1,6 @@
 import { jest, describe, beforeAll, beforeEach, it, expect } from '@jest/globals';
 import request from 'supertest';
-import jwt from 'jsonwebtoken';
+import { signToken } from './fixtures/factories.js';
 import process from 'process';
 import type { Application } from 'express';
 
@@ -31,15 +31,29 @@ await jest.unstable_mockModule('../src/modules/organizations/organizations.model
         lean: () => Promise.resolve(organizationsData),
       };
     },
+    findOne: (query: { name?: string }) => {
+      const found = organizationsData.find(o => o.name === query.name);
+      return {
+        lean: () => Promise.resolve(found ?? null),
+      };
+    },
     findById: (id: string) => {
       const found = organizationsData.find(o => String(o._id) === String(id));
-      return Promise.resolve(found ?? null);
+      return {
+        lean: () => Promise.resolve(found ?? null),
+      };
     },
-    findByIdAndUpdate: (id: string, update: Record<string, unknown>) => {
+    findByIdAndUpdate: (
+      id: string,
+      update: Record<string, unknown>,
+      options?: { new?: boolean }
+    ) => {
       const idx = organizationsData.findIndex(o => String(o._id) === String(id));
-      if (idx === -1) return Promise.resolve(null);
+      if (idx === -1) return { lean: () => Promise.resolve(null) };
+      const previous = { ...organizationsData[idx] };
       organizationsData[idx] = { ...organizationsData[idx], ...update } as OrganizationRecord;
-      return Promise.resolve(organizationsData[idx]);
+      const result = options?.new === false ? previous : organizationsData[idx];
+      return { lean: () => Promise.resolve(result) };
     },
     countDocuments: () => Promise.resolve(organizationsData.length),
     deleteMany: () => {
@@ -58,7 +72,15 @@ await jest.unstable_mockModule('../src/modules/organizations/organizations.model
 
 await jest.unstable_mockModule('../src/modules/users/users.model.js', () => ({
   UserModel: { create: jest.fn() },
+  OrganizationModel: {},
   OrganizationType: { ENTERPRISE: 'ENTERPRISE', LOGISTICS: 'LOGISTICS' },
+  UserRole: {
+    SUPER_ADMIN: 'SUPER_ADMIN',
+    ADMIN: 'ADMIN',
+    MANAGER: 'MANAGER',
+    VIEWER: 'VIEWER',
+    CUSTOMER: 'CUSTOMER',
+  },
 }));
 
 describe('Organizations API', () => {
@@ -76,7 +98,7 @@ describe('Organizations API', () => {
   });
 
   const generateToken = (payload: { userId?: string; role?: string; organizationId?: string }) =>
-    jwt.sign(payload, process.env.JWT_SECRET!);
+    signToken(payload);
 
   describe('POST /api/organizations', () => {
     it('should return 401 when not authenticated', async () => {

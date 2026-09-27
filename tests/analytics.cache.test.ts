@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import jwt from 'jsonwebtoken';
+import { signToken } from './fixtures/factories.js';
 import request from 'supertest';
 import type { Application } from 'express';
+import { fakeAggregate, fakeModel } from './helpers/fakeModel.js';
 
 describe('analytics redis cache', () => {
   let app: Application;
@@ -33,23 +34,23 @@ describe('analytics redis cache', () => {
       redisConnection: {},
     }));
 
-    const mockAggregate = jest.fn((pipeline: unknown) => ({
-      option: jest.fn(async () => {
-        aggregateExecutions.count += 1;
-        return [
-          {
-            shipmentsByStatus: [{ _id: 'DELIVERED', total: 4 }],
-            averageDeliveryTimeByLogisticsId: [{ _id: 'log-1', averageDeliveryTimeMs: 2000 }],
-            delayedShipments: [{ totalDelayed: 1 }],
-          },
-        ];
-      }),
-    }));
+    const mockAggregate = jest.fn((_pipeline: unknown[]) => {
+      aggregateExecutions.count += 1;
+      return fakeAggregate([
+        {
+          shipmentsByStatus: [{ _id: 'DELIVERED', total: 4 }],
+          averageDeliveryTimeByLogisticsId: [{ _id: 'log-1', averageDeliveryTimeMs: 2000 }],
+          delayedShipments: [{ totalDelayed: 1 }],
+        },
+      ]);
+    });
+    const shipmentModel = fakeModel({ aggregate: mockAggregate });
+    const anomalyModel = fakeModel({
+      aggregate: jest.fn(async () => []),
+    });
 
     await jest.unstable_mockModule('../src/modules/shipments/shipments.model.js', () => ({
-      Shipment: {
-        aggregate: mockAggregate,
-      },
+      Shipment: shipmentModel,
       ShipmentStatus: {
         CREATED: 'CREATED',
         IN_TRANSIT: 'IN_TRANSIT',
@@ -58,12 +59,16 @@ describe('analytics redis cache', () => {
       },
     }));
 
+    await jest.unstable_mockModule('../src/modules/anomaly/anomaly.model.js', () => ({
+      Anomaly: anomalyModel,
+    }));
+
     const appModule = await import('../src/app.js');
     app = appModule.buildApp();
   });
 
   it('serves second performance request from redis cache without hitting aggregation again', async () => {
-    const token = jwt.sign({ userId: 'u1', role: 'ADMIN' }, process.env.JWT_SECRET!);
+    const token = signToken({ userId: 'u1', role: 'ADMIN' });
     const query = {
       startDate: '2026-01-01T00:00:00.000Z',
       endDate: '2026-01-31T23:59:59.999Z',
