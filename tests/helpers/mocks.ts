@@ -80,8 +80,59 @@ export function createStellarServiceMock(
     tokenizeShipment: jest.fn(),
     anchorTelemetryHash: jest.fn(),
     releaseEscrow: jest.fn(),
-    getStellarExplorerUrl: (hash: string) =>
-      `https://stellar.expert/explorer/testnet/tx/${hash}`,
+    getStellarExplorerUrl: (hash: string) => `https://stellar.expert/explorer/testnet/tx/${hash}`,
+    ...overrides,
+  };
+}
+
+export type ChainAdapterMock = {
+  anchorEvent: MockFn;
+  releaseEscrow: MockFn;
+  streamEvents: MockFn;
+};
+
+export type ChainFactoryMock = {
+  createChainAdapter: MockFn;
+  getChainAdapter: MockFn;
+  resetChainAdapter: MockFn;
+  getChainActorAddress: MockFn;
+};
+
+const MOCK_TX_HASH = 'a'.repeat(64);
+
+/**
+ * Port-shaped adapter: anchors/releases resolve a simulated receipt, the event
+ * stream is empty. Override any method per test.
+ */
+export function createChainAdapterMock(
+  overrides: Partial<ChainAdapterMock> = {}
+): ChainAdapterMock {
+  return {
+    anchorEvent: jest.fn(async () => ({ txHash: MOCK_TX_HASH, ledger: 1, simulated: true })),
+    releaseEscrow: jest.fn(async (input: unknown) => ({
+      txHash: MOCK_TX_HASH,
+      ledger: 1,
+      simulated: true,
+      paymentId: (input as { payment_id: string }).payment_id,
+    })),
+    streamEvents: jest.fn(async function* () {}),
+    ...overrides,
+  };
+}
+
+/**
+ * Full mock of `src/services/chain/factory.js` named exports.
+ * `getChainAdapter()` / `createChainAdapter()` return `adapter`.
+ */
+export function createChainFactoryMock(
+  adapter: ChainAdapterMock = createChainAdapterMock(),
+  overrides: Partial<ChainFactoryMock> = {}
+): ChainFactoryMock {
+  return {
+    createChainAdapter: jest.fn(() => adapter),
+    getChainAdapter: jest.fn(() => adapter),
+    resetChainAdapter: jest.fn(),
+    getChainActorAddress: jest.fn(() => 'GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H'),
     ...overrides,
   };
 }
@@ -174,7 +225,9 @@ export type EmailServiceMock = {
 /**
  * Full mock of `src/services/email.service.js` named exports.
  */
-export function createEmailServiceMock(overrides: Partial<EmailServiceMock> = {}): EmailServiceMock {
+export function createEmailServiceMock(
+  overrides: Partial<EmailServiceMock> = {}
+): EmailServiceMock {
   return {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sendEmail: jest.fn(async () => undefined) as any,
