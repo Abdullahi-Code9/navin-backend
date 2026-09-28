@@ -746,7 +746,7 @@ type BulkUpdateResult = {
 /**
  * Updates multiple shipments' status in bulk. Returns partial results — failures for
  * one shipment never roll back successful updates already applied to others.
- * Each successful update emits a `status_update` WebSocket event.
+ * Each successful update emits a `shipment:status` WebSocket event.
  * @param {BulkStatusUpdateInput} input - Bulk update payload (`shipmentIds`, `status`).
  * @param {string} organizationId - Caller's organization id for ownership validation.
  * @param {{ userId?: string }=} actor - Optional actor metadata for audit/milestone attribution.
