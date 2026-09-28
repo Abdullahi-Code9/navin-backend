@@ -216,10 +216,11 @@ describe('Ledger block creation on lifecycle events', () => {
 
     findByIdMock.mockResolvedValue(mockShipmentDoc);
 
-    await updateShipmentStatusService('ship-1', 'DELIVERED' as never, {
+    const result = await updateShipmentStatusService('ship-1', 'DELIVERED' as never, {
       userId: 'user-1',
     });
 
+    expect(result).toMatchObject({ simulated: true });
     expect(createLedgerBlockMock).toHaveBeenCalledWith(
       expect.objectContaining({
         shipmentId: 'ship-1',
