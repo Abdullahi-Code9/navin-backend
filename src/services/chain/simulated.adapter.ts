@@ -20,8 +20,6 @@
  * Signing safety (TODO J4): submissions are serialized per source account in-process, and a
  * `tx_bad_seq` caused by another process sharing the account is retried with a fresh sequence.
  * Obtain instances via getChainAdapter() in ./factory.ts — never construct in domain code.
- * stellar.service.ts and its call sites are intentionally untouched (no behavior change) until
- * they migrate to the port (TODO J3).
  */
 import {
   Horizon,
