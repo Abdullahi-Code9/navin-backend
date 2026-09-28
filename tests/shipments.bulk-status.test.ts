@@ -1,4 +1,5 @@
 import { jest, describe, beforeAll, beforeEach, it, expect } from '@jest/globals';
+import { createChainFactoryMock } from './helpers/mocks.js';
 import request from 'supertest';
 import { signToken } from './fixtures/factories.js';
 import process from 'process';
@@ -114,6 +115,10 @@ await jest.unstable_mockModule('../src/services/stellar.service.js', () => ({
   releaseEscrow: jest.fn(() => Promise.resolve({ success: true, transactionHash: 'mock-tx-hash' })),
   getStellarExplorerUrl: jest.fn((txHash: string) => `https://stellar.expert/explorer/testnet/tx/${txHash}`),
 }));
+
+await jest.unstable_mockModule('../src/services/chain/factory.js', () =>
+  createChainFactoryMock()
+);
 
 await jest.unstable_mockModule('../src/infra/socket/io.js', () => ({
   initSocketIO: jest.fn(),

@@ -76,7 +76,7 @@ describe('generateDataHash', () => {
     };
     const h1 = generateDataHash(buildCanonicalShipmentPayload({ ...base, event: 'DELIVERED' }));
     const h2 = generateDataHash(
-      buildCanonicalShipmentPayload({ ...base, event: 'PROOF_SUBMITTED' }),
+      buildCanonicalShipmentPayload({ ...base, event: 'PROOF_SUBMITTED' })
     );
     expect(h1).not.toBe(h2);
   });

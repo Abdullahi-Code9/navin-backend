@@ -1,4 +1,5 @@
 import { describe, expect, beforeAll, beforeEach, afterAll, it, jest } from '@jest/globals';
+import { createChainFactoryMock } from '../helpers/mocks.js';
 import request from 'supertest';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
@@ -72,6 +73,10 @@ describe('E2E: Shipment Lifecycle (Hash and Emit Pipeline)', () => {
       ),
       getStellarExplorerUrl: jest.fn(() => 'https://stellar.expert/explorer/testnet/tx/mock'),
     }));
+
+    await jest.unstable_mockModule('../../src/services/chain/factory.js', () =>
+      createChainFactoryMock()
+    );
 
     await jest.unstable_mockModule('../../src/modules/auth/apiKey.service.js', () => ({
       validateApiKey: mockValidateApiKey,
