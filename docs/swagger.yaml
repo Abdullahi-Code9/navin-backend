@@ -751,6 +751,7 @@ paths:
         data suitable for public tracking pages. No authentication required.
         Rate limited to prevent abuse.
       x-implemented: true
+      x-required-role: none
       security: []
       parameters:
         - in: path
@@ -758,6 +759,8 @@ paths:
           required: true
           schema:
             type: string
+            pattern: '^[A-Za-z0-9_-]+$'
+            maxLength: 64
           description: Carrier tracking number (e.g., NVN-123456)
       responses:
         '200':
