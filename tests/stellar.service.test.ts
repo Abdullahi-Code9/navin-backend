@@ -257,4 +257,3 @@ describe('Stellar Service - network matrix & releaseEscrow', () => {
     expect(result.transactionHash).toBeDefined();
   });
 });
-

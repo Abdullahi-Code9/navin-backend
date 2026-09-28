@@ -133,6 +133,7 @@ describe('Ledger block creation on lifecycle events', () => {
       expect.objectContaining({
         shipmentId: 'ship-1',
         eventType: 'IN_TRANSIT',
+        dataHash: expect.stringMatching(/^[0-9a-f]{64}$/),
         actor: 'user-1',
       })
     );
@@ -155,6 +156,7 @@ describe('Ledger block creation on lifecycle events', () => {
       expect.objectContaining({
         shipmentId: 'ship-1',
         milestoneEvent: 'PROOF_SUBMITTED',
+        dataHash: expect.stringMatching(/^[0-9a-f]{64}$/),
       })
     );
   });
@@ -226,7 +228,8 @@ describe('Ledger block creation on lifecycle events', () => {
         shipmentId: 'ship-1',
         eventType: 'SETTLEMENT_INITIATED',
         transactionHash: 'stellar-tx-hash-abc',
-        metadata: { paymentId: 'pay-1', simulated: true },
+        dataHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+        metadata: expect.objectContaining({ paymentId: 'pay-1', simulated: true }),
       })
     );
     expect(chainAdapter.releaseEscrow).toHaveBeenCalledWith({
