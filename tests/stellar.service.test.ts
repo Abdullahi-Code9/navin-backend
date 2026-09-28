@@ -48,6 +48,7 @@ await jest.unstable_mockModule('../src/config/index.js', () => ({
   config: {
     get stellarSecretKey() { return mockStellarSecretKey; },
     stellarNetwork: 'testnet',
+    chainAdapter: 'simulated',
   },
 }));
 

@@ -9,7 +9,7 @@ import {
 } from '@stellar/stellar-sdk';
 import { config } from '../config/index.js';
 import { AppError, ErrorCodes } from '../shared/http/errors.js';
-import { getChainAdapter } from './chain/index.js';
+import { getChainAdapter } from './chain/factory.js';
 import { generateDataHash } from '../shared/utils/crypto.js';
 
 export function getHorizonServer(url: string = config.horizonUrl): Horizon.Server {

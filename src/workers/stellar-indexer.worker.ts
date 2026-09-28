@@ -9,7 +9,7 @@ import { LedgerBlock } from '../modules/ledger/ledger.model.js';
 import { MilestoneEvent } from '../shared/types/shipment.js';
 import { CHAIN_EVENT_NAMES } from '../shared/types/chain.js';
 import type { ChainAdapter } from '../services/chain/types.js';
-import { getChainAdapter } from '../services/chain/index.js';
+import { getChainAdapter } from '../services/chain/factory.js';
 import { logger } from '../shared/logger/logger.js';
 
 export const STELLAR_INDEXER_QUEUE = 'stellar_indexer_queue';
