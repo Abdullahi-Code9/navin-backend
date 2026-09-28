@@ -2657,16 +2657,13 @@ paths:
   /api/auth/api-keys/{organizationId}:
     get:
       operationId: api_keys_get_auth_api_keys_id
-      tags:
-        - API Keys
-      x-required-role: [ADMIN, SUPER_ADMIN]
       summary: List API keys for an organization
       description: >-
         Deprecated alias of `GET /api/company/api-keys`. Returns all active API
         keys for the specified organization (without exposing the raw keys).
         Requires JWT auth plus ADMIN or SUPER_ADMIN role.
       tags:
-        - Auth
+        - API Keys
       security:
         - bearerAuth: []
       x-required-role: [ADMIN, SUPER_ADMIN]
@@ -2721,16 +2718,13 @@ paths:
   /api/auth/api-keys/{apiKeyId}:
     delete:
       operationId: api_keys_delete_auth_api_keys_id
-      tags:
-        - API Keys
-      x-required-role: [ADMIN, SUPER_ADMIN]
       summary: Revoke an API key
       description: >-
         Deprecated alias of `DELETE /api/company/api-keys/{apiKeyId}`.
         Deactivates an API key, preventing it from being used for
         authentication. Requires JWT auth plus ADMIN or SUPER_ADMIN role.
       tags:
-        - Auth
+        - API Keys
       security:
         - bearerAuth: []
       x-required-role: [ADMIN, SUPER_ADMIN]
