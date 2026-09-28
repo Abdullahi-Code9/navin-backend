@@ -10,39 +10,63 @@ The backend service powers the off-chain layer of the platform, handling API log
 > **Chain integration status:** shipment/telemetry hashes are anchored on-chain today via Horizon transactions. Soroban smart-contract integration (hash-and-emit events, escrow) is being co-designed with the [navin-contracts](https://github.com/Navin-xmr/navin-contracts) repo — settlement flows are currently simulated placeholders. See `TODO.md` Part 3.
 
 ---
-### Docker quickstart
+
+## Table of Contents
+
+- [Docker Quickstart](#docker-quickstart)
+- [Authentication](#authentication)
+- [API Response Envelope](#api-response-envelope)
+- [Pagination](#pagination)
+- [Scripts](#scripts)
+
+---
+
+## Docker Quickstart
 
 This is the shortest path to a complete local stack. It runs the API, MongoDB,
 Redis, and both Stellar workers on the Compose network.
 
-Get the Navin Backend running in **less than 5 minutes**:
+**1. Clone the repository**
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/Navin-xmr/navin-backend.git
 cd navin-backend
+```
 
-# 2. Create the Compose environment file
+**2. Create the Compose environment file**
+
+```bash
+cp .env.example .env
 # Replace development secrets before using this stack outside a local machine.
-cp .env.docker.example .env.docker
-# Edit .env.docker with your values (at minimum: MONGO_INITDB_ROOT_USERNAME, MONGO_INITDB_ROOT_PASSWORD, JWT_SECRET, STELLAR_SECRET_KEY, STELLAR_WEBHOOK_SECRET)
+```
 
-# 3. Build and start the production image and dependencies
+On Windows PowerShell: `Copy-Item .env.example .env`
+
+**3. Build and start the production image and dependencies**
+
+```bash
 docker compose -f docker-compose.yml up -d --build
+```
 
-# 4. Verify the services and API
+This uses only `docker-compose.yml` (no override) so the stack runs the
+production image. The `-f docker-compose.yml` flag prevents Docker Compose
+from auto-merging `docker-compose.override.yml`.
+
+**4. Verify the services and API**
+
+```bash
 docker compose -f docker-compose.yml ps
 curl http://localhost:3000/api/health
 ```
 
-The health request should return `success: true` and `data.status: "active"`.
-The Compose file reads `.env.docker` when it exists. It supplies the internal
-container addresses for MongoDB and Redis, so `MONGO_URI` and `REDIS_URL` in
-`.env.docker` do not need to be changed for this workflow. The API is available at
-`http://localhost:3000/api`.
+On Windows PowerShell: `curl.exe http://localhost:3000/api/health`
 
-On Windows PowerShell, use `Copy-Item .env.docker.example .env.docker` for step 2 and
-`curl.exe http://localhost:3000/api/health` for step 4.
+The health request should return `success: true` and `data.status: "active"`.
+
+The Compose file reads `.env` when it exists. It supplies the internal
+container addresses for MongoDB and Redis, so `MONGO_URI` and `REDIS_URL` in
+`.env` do not need to be changed for this workflow. The API is available at
+`http://localhost:3000/api`.
 
 ### Service topology
 
@@ -57,7 +81,7 @@ flowchart LR
     indexer --> redis
 ```
 
-`mongo` and `redis` are published on loopback for local inspection. The
+`mongo` and `redis` are published on loopback (`127.0.0.1`) for local inspection only. The
 workers publish no ports; they consume the same MongoDB and Redis services as
 the API. The API and workers wait for healthy MongoDB and Redis containers
 before starting.
@@ -82,49 +106,6 @@ See [docs/environment-variables.md](docs/environment-variables.md) for the
 complete environment matrix, validation rules, defaults, and optional
 integration settings. `JWT_SECRET` must be at least 32 characters; the example
 file contains a development placeholder that should be replaced locally.
-
-### Docker environment variables
-
-The Docker Compose stack reads configuration from `.env.docker` (git-ignored).
-A template is provided at `.env.docker.example`. Copy and fill it before
-starting the stack:
-
-```bash
-cp .env.docker.example .env.docker
-# Edit .env.docker with your values
-docker compose -f docker-compose.yml up -d --build
-```
-
-**Required keys for Docker (must be set in `.env.docker`):**
-
-| Variable | Description |
-|---|---|
-| `MONGO_INITDB_ROOT_USERNAME` | MongoDB root username for authentication |
-| `MONGO_INITDB_ROOT_PASSWORD` | MongoDB root password (strong, unique) |
-| `MONGO_URI` | Full MongoDB connection string with credentials, e.g. `mongodb://user:pass@mongo:27017/navin_dev?authSource=admin` |
-| `JWT_SECRET` | JWT signing secret (min 32 chars) |
-| `STELLAR_SECRET_KEY` | Horizon signing secret (required for anchoring) |
-| `STELLAR_WEBHOOK_SECRET` | HMAC secret for Stellar webhooks (min 16 chars) |
-
-**Optional keys (have defaults or are feature-gated):**
-
-| Variable | Default | Notes |
-|---|---|---|
-| `REDIS_URL` | `redis://redis:6379` | Internal Compose DNS name |
-| `STELLAR_NETWORK` | `testnet` | `testnet` or `public` |
-| `NODE_ENV` | `production` | `development` \| `test` \| `production` |
-| `FRONTEND_URL` | `http://localhost:5173` | Invite / password-reset links |
-| `ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated CORS allowlist |
-| `CORS_ORIGIN` | `*` | Legacy single-origin fallback |
-| `LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` |
-| `TOTP_ENCRYPTION_KEY` | — | 64-hex AES-256 key (required in production) |
-
-All other variables from [`.env.example`](.env.example) (SMTP, S3, Twilio, Sentry, etc.)
-are also supported in `.env.docker` — copy them as needed for your environment.
-
-> **Security:** Never commit `.env.docker` to version control. The `.env.docker.example`
-> template contains only placeholders. The `docker-compose.yml` uses `env_file` with
-> `required: false` so the stack can start with just the required keys above.
 
 ### Docker troubleshooting
 

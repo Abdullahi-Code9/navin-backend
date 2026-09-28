@@ -8,7 +8,6 @@ node_modules/
 .env
 .env.*
 !.env.example
-!.env.docker.example
 
 # logs
 npm-debug.log*
@@ -43,6 +42,9 @@ coverage/
 
 .agent/
 issue.md
+
+# Redis persistence probe state (scripts/redis-persistence-probe.mjs)
+.redis-persistence-probe.json
 
 # Agent Skills & Prompts
 .agents/*
