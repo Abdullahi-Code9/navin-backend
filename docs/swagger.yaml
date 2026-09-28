@@ -7515,8 +7515,16 @@ components:
           description: Associated shipment ObjectId
         eventType:
           $ref: '#/components/schemas/MilestoneEvent'
+        dataHash:
+          type: string
+          nullable: true
+          description: >
+            SHA-256 hex digest of the payload committed by the on-chain transaction.
+            Allows independent verification that `transactionHash` covers the expected data.
+            Present only when the block was created with an associated on-chain anchor.
         transactionHash:
           type: string
+          nullable: true
           description: Stellar transaction hash, if applicable
         actor:
           type: string
