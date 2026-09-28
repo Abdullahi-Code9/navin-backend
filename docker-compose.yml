@@ -72,11 +72,8 @@ services:
       - path: .env
         required: false
     environment:
-      - PORT=3000
-      - MONGO_URI=mongodb://mongo:27017/navin_dev
-      - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET:-dev-secret-key-replace-in-prod-min-32-chars}
-      - STELLAR_NETWORK=testnet
+      <<: *worker-env
+      PORT: "3000"
     depends_on:
       mongo:
         condition: service_healthy
@@ -102,10 +99,7 @@ services:
       - path: .env
         required: false
     environment:
-      - MONGO_URI=mongodb://mongo:27017/navin_dev
-      - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET:-dev-secret-key-replace-in-prod-min-32-chars}
-      - STELLAR_NETWORK=testnet
+      <<: *worker-env
     depends_on:
       mongo:
         condition: service_healthy
@@ -129,10 +123,7 @@ services:
       - path: .env
         required: false
     environment:
-      - MONGO_URI=mongodb://mongo:27017/navin_dev
-      - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET:-dev-secret-key-replace-in-prod-min-32-chars}
-      - STELLAR_NETWORK=testnet
+      <<: *worker-env
     depends_on:
       mongo:
         condition: service_healthy
