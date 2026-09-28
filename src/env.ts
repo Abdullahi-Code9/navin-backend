@@ -64,6 +64,7 @@ const EnvSchema = z.object({
   HORIZON_URL: z.string().url('HORIZON_URL must be a valid URL').optional(),
   SOROBAN_RPC_URL: z.string().url('SOROBAN_RPC_URL must be a valid URL').optional(),
   ESCROW_CONTRACT_ID: z.string().min(1).optional(),
+  // ChainAdapter implementation (src/services/chain/factory.ts)
   SOROBAN_ADAPTER: z.enum(['simulated', 'soroban']).default('simulated'),
 
   // Observability

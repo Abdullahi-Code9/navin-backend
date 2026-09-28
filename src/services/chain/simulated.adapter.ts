@@ -17,6 +17,9 @@
  *   or amount that a spec `esc_rel` event requires, and fabricating them would be dishonest.
  *   The stream ends at the current head; re-invoke with the last event id to continue.
  *
+ * Signing safety (TODO J4): submissions are serialized per source account in-process, and a
+ * `tx_bad_seq` caused by another process sharing the account is retried with a fresh sequence.
+ * Obtain instances via getChainAdapter() in ./factory.ts — never construct in domain code.
  * stellar.service.ts and its call sites are intentionally untouched (no behavior change) until
  * they migrate to the port (TODO J3).
  */
@@ -43,6 +46,7 @@ import {
 import type { ChainEvent } from '../../shared/types/chain.js';
 import { generateDataHash } from '../../shared/utils/crypto.js';
 
+import { KeyedSerializer } from './serializer.js';
 import type {
   AnchorEventInput,
   AnchorResult,
@@ -59,6 +63,17 @@ export const SIMULATED_CONTRACT_ID = StrKey.encodeContract(Buffer.alloc(32));
 const ANCHOR_KEY_PREFIX = 'telemetry:';
 const RELEASE_KEY_PREFIX = 'release:';
 const PAGE_SIZE = 200;
+const MAX_BAD_SEQ_RETRIES = 2;
+
+/** Process-wide: every adapter instance signing for an account shares its queue. */
+const accountSerializer = new KeyedSerializer();
+
+/** Horizon rejects a stale sequence with `extras.result_codes.transaction === 'tx_bad_seq'`. */
+export function isBadSequence(err: unknown): boolean {
+  const data = (err as { response?: { data?: unknown } } | null)?.response?.data as
+    { extras?: { result_codes?: { transaction?: string } } } | undefined;
+  return data?.extras?.result_codes?.transaction === 'tx_bad_seq';
+}
 
 /** Horizon transaction record fields the adapter reads. */
 export interface HorizonTxRecord {
@@ -190,20 +205,34 @@ export class SimulatedAdapter implements ChainAdapter {
   /** Same shape as the legacy flows: one manage-data op, hash memo, 30s timeout. */
   private async submitManageData(name: string, hexValue: string) {
     const keypair = this.signer();
-    return this.wrap(async () => {
-      const account = await this.horizon.loadAccount(keypair.publicKey());
-      const tx = new TransactionBuilder(account, {
-        fee: BASE_FEE,
-        networkPassphrase: this.networkPassphrase,
+    const publicKey = keypair.publicKey();
+
+    // Signing safety (TODO J4): one in-flight load→build→sign→submit per source
+    // account, so concurrent jobs never build against the same sequence number.
+    return this.wrap(() =>
+      accountSerializer.run(publicKey, async () => {
+        for (let attempt = 0; ; attempt++) {
+          const account = await this.horizon.loadAccount(publicKey);
+          const tx = new TransactionBuilder(account, {
+            fee: BASE_FEE,
+            networkPassphrase: this.networkPassphrase,
+          })
+            .addOperation(Operation.manageData({ name, value: hexValue }))
+            .addMemo(Memo.hash(Buffer.from(hexValue, 'hex')))
+            .setTimeout(30)
+            .build();
+          tx.sign(keypair);
+          try {
+            const { hash, ledger } = await this.horizon.submitTransaction(tx);
+            return { hash, ledger };
+          } catch (err) {
+            // Another process sharing this account advanced the sequence: reload and rebuild.
+            if (isBadSequence(err) && attempt < MAX_BAD_SEQ_RETRIES) continue;
+            throw err;
+          }
+        }
       })
-        .addOperation(Operation.manageData({ name, value: hexValue }))
-        .addMemo(Memo.hash(Buffer.from(hexValue, 'hex')))
-        .setTimeout(30)
-        .build();
-      tx.sign(keypair);
-      const { hash, ledger } = await this.horizon.submitTransaction(tx);
-      return { hash, ledger };
-    });
+    );
   }
 
   /** Port error contract: every rejection is an AppError with an ERR_CHAIN_* code. */

@@ -1,6 +1,9 @@
 import { Shipment } from './shipments.model.js';
 import type { FilterQuery, SortOrder } from 'mongoose';
-import { tokenizeShipment, releaseEscrow } from '../../services/stellar.service.js';
+import { tokenizeShipment } from '../../services/stellar.service.js';
+import { getChainAdapter } from '../../services/chain/factory.js';
+import type { EscrowResult } from '../../services/chain/types.js';
+import { generateDataHash } from '../../shared/utils/crypto.js';
 import { uploadFileToStorage } from '../../services/storage/upload.js';
 import {
   generateProofKey,
@@ -65,6 +68,25 @@ type TelemetryPoint = {
 const ETA_POINTS_WINDOW = 8;
 const MIN_EFFECTIVE_SPEED_KMH = 5;
 const DEFAULT_SINGLE_POINT_SPEED_KMH = 40;
+
+/**
+ * Release escrow for a delivered shipment through the ChainAdapter port.
+ * Rejects with AppError(ERR_CHAIN_*) on failure; results carry `simulated`.
+ */
+function releaseEscrowOnDelivery(
+  shipment: { _id: { toString(): string }; deliveryProof?: { url?: string | null } | null },
+  paymentId: string
+): Promise<EscrowResult> {
+  const shipmentId = shipment._id.toString();
+  return getChainAdapter().releaseEscrow({
+    payment_id: paymentId,
+    proof_hash: generateDataHash({
+      shipmentId,
+      paymentId,
+      deliveryProofUrl: shipment.deliveryProof?.url ?? null,
+    }),
+  });
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -626,40 +648,35 @@ export const updateShipmentStatusService = async (
     try {
       const payment = await paymentsRepo.getPaymentByShipmentId(shipment._id.toString());
       if (payment) {
-        const releaseResult = await releaseEscrow({
-          paymentId: payment._id.toString(),
-          shipmentId: shipment._id.toString(),
-        });
+        const released = await releaseEscrowOnDelivery(shipment, payment._id.toString());
 
-        if (releaseResult.success && releaseResult.transactionHash) {
-          simulated = releaseResult.simulated;
-          await paymentsRepo.updatePaymentStatus(
-            payment._id.toString(),
-            PaymentStatus.RELEASED,
-            releaseResult.transactionHash
-          );
+        simulated = released.simulated;
+        await paymentsRepo.updatePaymentStatus(
+          payment._id.toString(),
+          PaymentStatus.RELEASED,
+          released.txHash
+        );
 
-          // Write ledger block for settlement initiation
-          try {
-            await createLedgerBlockService({
-              shipmentId: id,
-              eventType: MilestoneEvent.SETTLEMENT_INITIATED,
-              transactionHash: releaseResult.transactionHash,
-              actor: actor?.userId,
-              metadata: { paymentId: payment._id.toString() },
-            });
-          } catch (settlementLedgerErr) {
-            logger.warn(
-              { err: settlementLedgerErr, shipmentId: id },
-              'Failed to create ledger block for settlement initiation'
-            );
-          }
-
-          logger.info(
-            { shipmentId: id, transactionHash: releaseResult.transactionHash },
-            'Escrow released for shipment'
+        // Write ledger block for settlement initiation
+        try {
+          await createLedgerBlockService({
+            shipmentId: id,
+            eventType: MilestoneEvent.SETTLEMENT_INITIATED,
+            transactionHash: released.txHash,
+            actor: actor?.userId,
+            metadata: { paymentId: payment._id.toString(), simulated: released.simulated },
+          });
+        } catch (settlementLedgerErr) {
+          logger.warn(
+            { err: settlementLedgerErr, shipmentId: id },
+            'Failed to create ledger block for settlement initiation'
           );
         }
+
+        logger.info(
+          { shipmentId: id, transactionHash: released.txHash, simulated: released.simulated },
+          'Escrow released for shipment'
+        );
       }
     } catch (escrowError) {
       logger.warn({ err: escrowError, shipmentId: id }, 'Failed to trigger escrow release');
@@ -809,22 +826,16 @@ export const bulkUpdateShipmentStatusService = async (
         try {
           const payment = await paymentsRepo.getPaymentByShipmentId(id);
           if (payment) {
-            const releaseResult = await releaseEscrow({
-              paymentId: payment._id.toString(),
-              shipmentId: id,
-            });
-
-            if (releaseResult.success && releaseResult.transactionHash) {
-              await paymentsRepo.updatePaymentStatus(
-                payment._id.toString(),
-                PaymentStatus.RELEASED,
-                releaseResult.transactionHash
-              );
-              logger.info(
-                { shipmentId: id, transactionHash: releaseResult.transactionHash },
-                'Escrow released for shipment'
-              );
-            }
+            const released = await releaseEscrowOnDelivery(shipment, payment._id.toString());
+            await paymentsRepo.updatePaymentStatus(
+              payment._id.toString(),
+              PaymentStatus.RELEASED,
+              released.txHash
+            );
+            logger.info(
+              { shipmentId: id, transactionHash: released.txHash, simulated: released.simulated },
+              'Escrow released for shipment'
+            );
           }
         } catch (escrowError) {
           logger.warn({ err: escrowError, shipmentId: id }, 'Failed to trigger escrow release');
