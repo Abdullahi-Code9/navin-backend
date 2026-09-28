@@ -205,20 +205,34 @@ export class SimulatedAdapter implements ChainAdapter {
   /** Same shape as the legacy flows: one manage-data op, hash memo, 30s timeout. */
   private async submitManageData(name: string, hexValue: string) {
     const keypair = this.signer();
-    return this.wrap(async () => {
-      const account = await this.horizon.loadAccount(keypair.publicKey());
-      const tx = new TransactionBuilder(account, {
-        fee: BASE_FEE,
-        networkPassphrase: this.networkPassphrase,
+    const publicKey = keypair.publicKey();
+
+    // Signing safety (TODO J4): one in-flight load→build→sign→submit per source
+    // account, so concurrent jobs never build against the same sequence number.
+    return this.wrap(() =>
+      accountSerializer.run(publicKey, async () => {
+        for (let attempt = 0; ; attempt++) {
+          const account = await this.horizon.loadAccount(publicKey);
+          const tx = new TransactionBuilder(account, {
+            fee: BASE_FEE,
+            networkPassphrase: this.networkPassphrase,
+          })
+            .addOperation(Operation.manageData({ name, value: hexValue }))
+            .addMemo(Memo.hash(Buffer.from(hexValue, 'hex')))
+            .setTimeout(30)
+            .build();
+          tx.sign(keypair);
+          try {
+            const { hash, ledger } = await this.horizon.submitTransaction(tx);
+            return { hash, ledger };
+          } catch (err) {
+            // Another process sharing this account advanced the sequence: reload and rebuild.
+            if (isBadSequence(err) && attempt < MAX_BAD_SEQ_RETRIES) continue;
+            throw err;
+          }
+        }
       })
-        .addOperation(Operation.manageData({ name, value: hexValue }))
-        .addMemo(Memo.hash(Buffer.from(hexValue, 'hex')))
-        .setTimeout(30)
-        .build();
-      tx.sign(keypair);
-      const { hash, ledger } = await this.horizon.submitTransaction(tx);
-      return { hash, ledger };
-    });
+    );
   }
 
   /** Port error contract: every rejection is an AppError with an ERR_CHAIN_* code. */
