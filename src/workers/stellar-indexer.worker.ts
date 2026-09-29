@@ -71,7 +71,7 @@ export async function indexStellarTransactions(
     processed += 1;
     cursor = event.id;
 
-    let eventType: MilestoneEvent;
+    let milestoneEvent: MilestoneEvent;
     let shipmentId: string;
     const metadata: Record<string, unknown> = {
       blockNumber: event.ledger,
@@ -81,40 +81,12 @@ export async function indexStellarTransactions(
       indexedAt: new Date().toISOString(),
     };
 
-    const result = await LedgerBlock.updateOne(
-      { transactionHash: tx.hash },
-      {
-        $setOnInsert: {
-          shipmentId: String((payment as { shipmentId: unknown }).shipmentId),
-          milestoneEvent: toMilestoneEvent(tx.memo),
-          transactionHash: tx.hash,
-          actor: 'stellar-indexer',
-        },
-        $set: { metadata },
-      },
-      { upsert: true }
-    );
-
-    if ((result as { upsertedCount?: number }).upsertedCount) {
-      upserted += 1;
-    }
-  }
-
-  for (const record of telemetryRecords) {
-    const txHash = String((record as { stellarTxHash?: string }).stellarTxHash ?? '').trim();
-    if (!txHash || seen.has(txHash)) {
-      continue;
-    }
-    seen.add(txHash);
-
-    const tx = await client.getTransaction(txHash);
-    if (!tx) {
     if (event.name === CHAIN_EVENT_NAMES.ANCHOR) {
-      eventType = MilestoneEvent.IN_TRANSIT;
+      milestoneEvent = MilestoneEvent.IN_TRANSIT;
       shipmentId = event.topic[1];
       metadata.dataHash = event.data[0];
     } else if (event.name === CHAIN_EVENT_NAMES.ESCROW_INIT) {
-      eventType = MilestoneEvent.SETTLEMENT_INITIATED;
+      milestoneEvent = MilestoneEvent.SETTLEMENT_INITIATED;
       shipmentId = event.data[0];
       metadata.paymentId = event.topic[1];
       metadata.payer = event.data[1];
@@ -122,7 +94,7 @@ export async function indexStellarTransactions(
       metadata.token = event.data[3];
       metadata.amount = event.data[4];
     } else if (event.name === CHAIN_EVENT_NAMES.ESCROW_RELEASE) {
-      eventType = MilestoneEvent.SETTLEMENT_COMPLETED;
+      milestoneEvent = MilestoneEvent.SETTLEMENT_COMPLETED;
       shipmentId = event.topic[1];
       metadata.paymentId = event.topic[1];
       metadata.proofHash = event.data[0];
@@ -136,11 +108,8 @@ export async function indexStellarTransactions(
       { transactionHash: event.tx_hash },
       {
         $setOnInsert: {
-          shipmentId: String((record as { shipmentId: unknown }).shipmentId),
-          milestoneEvent: eventType,
-          transactionHash: tx.hash,
           shipmentId,
-          eventType,
+          milestoneEvent,
           transactionHash: event.tx_hash,
           actor: 'stellar-indexer',
         },
