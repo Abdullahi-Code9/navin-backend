@@ -340,10 +340,7 @@ export const getShipmentByIdService = async (
 };
 
 export type ShipmentTimelineEventType =
-  | 'STATUS_CHANGE'
-  | 'TELEMETRY_ANCHORED'
-  | 'ANOMALY_DETECTED'
-  | 'PROOF_UPLOADED';
+  'STATUS_CHANGE' | 'TELEMETRY_ANCHORED' | 'ANOMALY_DETECTED' | 'PROOF_UPLOADED';
 
 export interface ShipmentTimelineEvent {
   type: ShipmentTimelineEventType;
@@ -648,11 +645,8 @@ export const updateShipmentStatusService = async (
       shipmentId: id,
       eventType: status as unknown as MilestoneEvent,
       actor: actor?.userId,
-      metadata: { previousStatus, simulated: true },
-      transactionHash: shipment.stellarTxHash ?? undefined,
+      metadata: { previousStatus, simulated: true, canonical },
       dataHash: generateDataHash(canonical),
-      actor: actor?.userId,
-      metadata: { previousStatus, canonical },
     });
   } catch (ledgerErr) {
     logger.warn(
