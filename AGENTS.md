@@ -89,7 +89,7 @@ Modules stay self-contained. Cross-module imports only along these lines:
 | `analytics` | `shipments`, `payments` |
 | `events` | `infra/redis` |
 | `notifications` | `users` (preferences) |
-| `telemetry`/`payments`/`shipments`/`webhooks` | `src/services/chain` (**port types only** — planned per TODO Part 3; never import Stellar implementations directly) |
+| `telemetry`/`payments`/`shipments`/`webhooks`/workers | `src/services/chain` — **port types (`types.ts`) + `factory.ts` (`getChainAdapter`) only**; never import an adapter implementation or Stellar SDK directly |
 
 Prefer domain events over direct service calls. Never import a sibling controller. Avoid circular deps — pull shared logic into `src/shared/` or emit events. When you add a new dependency, note it here and in the consumer module's `AGENTS.md`.
 

@@ -31,7 +31,7 @@ Cross-check source: `src/env.ts`, `.env.example`, and `process.env` / `env.*` us
 |----------|:---------:|:--------------:|:------------:|----------------------|----------------------------|
 | `STELLAR_NETWORK` | yes | yes | yes | Optional (default `testnet`) | `testnet` \| `public`; selects the default Horizon/Soroban URLs (`src/config/stellarNetwork.ts`, implementing [#360](https://github.com/Navin-xmr/navin-backend/issues/360)); an unrecognized value fails fast at boot |
 | `HORIZON_URL` | yes | no | yes | Optional — overrides the URL `STELLAR_NETWORK` derives | `src/services/stellar.service.ts` via `config.horizonUrl` |
-| `STELLAR_SECRET_KEY` | yes | yes | yes | Optional at boot; **required** for anchoring/signing | Horizon/SDK workers (`src/services/stellar.service.ts`) |
+| `STELLAR_SECRET_KEY` | yes | yes | yes | Optional at boot; **required** for anchoring/signing | Horizon/SDK workers (`src/services/stellar.service.ts`, `src/services/chain/simulated.adapter.ts`) |
 | `STELLAR_WEBHOOK_SECRET` | yes | yes | yes | Optional at boot; **required** for webhook HMAC | `verifyStellarSignature` middleware |
 
 ## Frontend & email
@@ -74,6 +74,18 @@ Cross-check source: `src/env.ts`, `.env.example`, and `process.env` / `env.*` us
 |----------|:---------:|:--------------:|:------------:|----------------------|----------------------------|
 | `ESCROW_CONTRACT_ID` | yes | yes | no (config only) | Optional | **TODO** — no Soroban client yet. [#358](https://github.com/Navin-xmr/navin-backend/issues/358) |
 | `SOROBAN_RPC_URL` | yes | yes | no (config only) | Optional | **TODO** — same as above |
+| `SOROBAN_ADAPTER` | yes | yes | yes | Optional (default `simulated`) | Selects the `ChainAdapter` implementation (`src/services/chain/factory.ts`, [#653](https://github.com/Navin-xmr/navin-backend/issues/653)); an unrecognized value fails fast at boot |
+
+### ChainAdapter env matrix
+
+| `SOROBAN_ADAPTER` | `STELLAR_SECRET_KEY` | Behaviour |
+|-------------------|----------------------|-----------|
+| unset / `simulated` | set | `SimulatedAdapter`: Horizon manage-data anchors/releases; every result `simulated: true` (no contract, no funds move). Submissions serialized per signing account; `tx_bad_seq` from another process is retried (≤2) with a fresh sequence |
+| unset / `simulated` | unset | Adapter builds; each chain call rejects `ERR_CHAIN_UNKNOWN` (500). Anchor jobs mark telemetry `ANCHOR_FAILED`; settlement logs a warning and leaves the payment unreleased |
+| `soroban` | any | `getChainAdapter()` throws `ERR_CHAIN_UNKNOWN` — SorobanAdapter not implemented yet (TODO K2). `stellar.worker` refuses to start |
+| anything else | any | Env validation fails; process exits at boot |
+
+> Several processes sharing one signing account are safe only up to the bounded `tx_bad_seq` retry; for sustained multi-process load give each worker process its own signing account.
 
 ## Observability
 
