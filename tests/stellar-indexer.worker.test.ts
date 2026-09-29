@@ -55,9 +55,6 @@ describe('stellar indexer worker - event driven', () => {
       { transactionHash: mockEvents[0].tx_hash },
       expect.objectContaining({
         $setOnInsert: {
-          shipmentId: '507f1f77bcf86cd799439011',
-          milestoneEvent: 'IN_TRANSIT',
-          transactionHash: 'tx-telemetry-1',
           shipmentId: 'ship-1',
           eventType: 'IN_TRANSIT',
           transactionHash: mockEvents[0].tx_hash,
