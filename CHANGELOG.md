@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added canonical `dataHash` persistence for shipment status, settlement, and proof ledger events (#654)
 - Corrected `docs/PAGINATION.md` pagination strategy table: users dual-mode is live, documented the payments `total` meta variance, added shipment timeline to the cursor list (#576)
 
 ### Changed
@@ -72,6 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Restored per-account Stellar signing serialization and bounded `tx_bad_seq` retries (#692)
 - Repaired merge-corrupted `src/config/index.ts` and duplicate keys in `src/env.ts` so `npm run build` succeeds (#396)
 - Restored missing `organizationsRouter` import in `buildApp` and repaired broken `auth.controller` / Swagger YAML so pagination and search suites can boot
 - Confirmed telemetry pagination and battery-threshold anomaly tests assert auth + `data` array envelope correctly

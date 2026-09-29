@@ -1,25 +1,23 @@
 /**
  * Reusable ESM mock factories for Jest `unstable_mockModule`.
  *
- * ## ESM mocking pattern
- *
- * Jest hoists `jest.mock()` calls, but native ESM modules require
- * `jest.unstable_mockModule()` which is **not** hoisted. The typical pattern:
+ * ## ESM-safe pattern (required)
  *
  * ```ts
  * import { jest } from '@jest/globals';
- * import { createStellarServiceMock } from './helpers/mocks.js';
  *
- * await jest.unstable_mockModule('../src/services/stellar.service.js', () =>
- *   createStellarServiceMock()
- * );
- *
+ * jest.resetModules();
+ * await jest.unstable_mockModule('../src/services/stellar.service.js', async () => {
+ *   const actual = await jest.requireActual('../src/services/stellar.service.js');
+ *   return { ...actual, ...createStellarServiceMock() };
+ * });
  * // Import the module under test *after* registering mocks
- * const { tokenizeShipment } = await import('../src/services/stellar.service.js');
+ * const mod = await import('../src/services/stellar.service.js');
  * ```
  *
- * Each factory returns a complete module shape so callers never omit a named
- * export that downstream code may import.
+ * Order matters: reset → mock → import. Factories return complete shapes so
+ * callers never omit a named export. Prefer spreading `requireActual` so new
+ * exports fail open instead of breaking 100+ suites.
  */
 import { jest } from '@jest/globals';
 
@@ -80,8 +78,59 @@ export function createStellarServiceMock(
     tokenizeShipment: jest.fn(),
     anchorTelemetryHash: jest.fn(),
     releaseEscrow: jest.fn(),
-    getStellarExplorerUrl: (hash: string) =>
-      `https://stellar.expert/explorer/testnet/tx/${hash}`,
+    getStellarExplorerUrl: (hash: string) => `https://stellar.expert/explorer/testnet/tx/${hash}`,
+    ...overrides,
+  };
+}
+
+export type ChainAdapterMock = {
+  anchorEvent: MockFn;
+  releaseEscrow: MockFn;
+  streamEvents: MockFn;
+};
+
+export type ChainFactoryMock = {
+  createChainAdapter: MockFn;
+  getChainAdapter: MockFn;
+  resetChainAdapter: MockFn;
+  getChainActorAddress: MockFn;
+};
+
+const MOCK_TX_HASH = 'a'.repeat(64);
+
+/**
+ * Port-shaped adapter: anchors/releases resolve a simulated receipt, the event
+ * stream is empty. Override any method per test.
+ */
+export function createChainAdapterMock(
+  overrides: Partial<ChainAdapterMock> = {}
+): ChainAdapterMock {
+  return {
+    anchorEvent: jest.fn(async () => ({ txHash: MOCK_TX_HASH, ledger: 1, simulated: true })),
+    releaseEscrow: jest.fn(async (input: unknown) => ({
+      txHash: MOCK_TX_HASH,
+      ledger: 1,
+      simulated: true,
+      paymentId: (input as { payment_id: string }).payment_id,
+    })),
+    streamEvents: jest.fn(async function* () {}),
+    ...overrides,
+  };
+}
+
+/**
+ * Full mock of `src/services/chain/factory.js` named exports.
+ * `getChainAdapter()` / `createChainAdapter()` return `adapter`.
+ */
+export function createChainFactoryMock(
+  adapter: ChainAdapterMock = createChainAdapterMock(),
+  overrides: Partial<ChainFactoryMock> = {}
+): ChainFactoryMock {
+  return {
+    createChainAdapter: jest.fn(() => adapter),
+    getChainAdapter: jest.fn(() => adapter),
+    resetChainAdapter: jest.fn(),
+    getChainActorAddress: jest.fn(() => 'GAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQDZ7H'),
     ...overrides,
   };
 }
@@ -97,12 +146,19 @@ export function createUsersModelMock(overrides: Partial<UsersModelMock> = {}): U
       findOne: jest.fn(),
       findById: jest.fn(),
       findByIdAndUpdate: jest.fn(),
+      findOneAndUpdate: jest.fn(),
+      updateOne: jest.fn(),
+      updateMany: jest.fn(),
+      deleteOne: jest.fn(),
+      countDocuments: jest.fn(),
       ...(overrides.UserModel ?? {}),
-    },
+    } as UsersModelMock['UserModel'],
     OrganizationModel: {
       findById: jest.fn(),
+      findOne: jest.fn(),
+      create: jest.fn(),
       ...(overrides.OrganizationModel ?? {}),
-    },
+    } as UsersModelMock['OrganizationModel'],
     UserRole: {
       SUPER_ADMIN: 'SUPER_ADMIN',
       ADMIN: 'ADMIN',
@@ -174,7 +230,9 @@ export type EmailServiceMock = {
 /**
  * Full mock of `src/services/email.service.js` named exports.
  */
-export function createEmailServiceMock(overrides: Partial<EmailServiceMock> = {}): EmailServiceMock {
+export function createEmailServiceMock(
+  overrides: Partial<EmailServiceMock> = {}
+): EmailServiceMock {
   return {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sendEmail: jest.fn(async () => undefined) as any,
